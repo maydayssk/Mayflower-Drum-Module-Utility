@@ -18,7 +18,7 @@ note_to_drum = {
 }
 
 #(hopefully) user-configurable midi device name!
-#keyboard = 'LPK25 mk2'
+keyboard = 'LPK25 mk2'
 
 #GUI Setup starts here >:)
 app = ctk.CTk()  # Replacing Tk with customtkinter CTk for the main window
