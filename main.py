@@ -7,16 +7,16 @@ import threading  # Import threading to run MIDI listening at the same time as t
 
 # Map MIDI notes to the sounds you want
 note_to_drum = {
-    48: '/Users/hasan/Documents/the meowening/bass.mp3',
-    50: '/Users/hasan/Documents/the meowening/bass.mp3',
-    52: '/Users/hasan/Documents/the meowening/snare.wav',
-    62: '/Users/hasan/Documents/the meowening/hightom.mp3',
-    64: '/Users/hasan/Documents/the meowening/midtom.mp3',
-    66: '/Users/hasan/Documents/the meowening/ftom.mp3',
-    53: '/Users/hasan/Documents/the meowening/hihatopen.mp3',
-    54: '/Users/hasan/Documents/the meowening/hihatclosed.mp3',
-    56: '/Users/hasan/Documents/the meowening/rcymbal.mp3',
-    57: '/Users/hasan/Documents/the meowening/ccymbal.mp3'
+    48: 'bass.mp3',
+    50: 'bass.mp3',
+    52: 'snare.wav',
+    62: 'hightom.mp3',
+    64: 'midtom.mp3',
+    66: 'ftom.mp3',
+    53: 'hihatopen.mp3',
+    54: 'hihatclosed.mp3',
+    56: 'rcymbal.mp3',
+    57: 'ccymbal.mp3'
 }
 
 # (hopefully) user-configurable midi device name!
