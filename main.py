@@ -1,6 +1,8 @@
 import mido
 import playsound
 import customtkinter as ctk
+import tkinter as tk
+from customtkinter import filedialog
 import threading  # Import threading to run MIDI listening at the same time as the GUI
 
 # Map MIDI notes to the sounds you want
@@ -86,7 +88,19 @@ def make_draggable(widget):
     widget.bind("<B1-Motion>", on_drag)
     widget.bind("<ButtonRelease-1>", lambda event: play_sound(widget['text']) if not is_dragging else None)
 
-# Generate positions for the instrument buttons
+#Sample sound changing function >:)
+def change_sample_sound(instrument):
+    file_path = filedialog.askopenfilename(title="Select a new sample", filetypes=[("Audio Files", "*.mp3;*.wav")])
+
+    #Checking if the file path is valid (not empty or none)
+    if file_path and file_path !="":
+        note_to_drum[instrument["note"]] = file_path
+        instrument["sound"] = file_path
+        print(f"Updated sound for {instrument['name']} to {file_path}")
+    else:
+        print("No valid file selected")
+
+#Generate positions for the instrument buttons
 def position_generator(num_buttons, spacing=120):
     positions = []
     for i in range(num_buttons):
@@ -95,21 +109,35 @@ def position_generator(num_buttons, spacing=120):
         positions.append((x, y))
     return positions
 
-positions = position_generator(len(instruments))
+#Function to show right-click menu for changing samples
+def show_context_menu(event, instrument):
+    context_menu = tk.Menu(app, tearoff=0)
+    context_menu.add_command(label="Change Sound", command=lambda: change_sample_sound(instrument))
+    context_menu.post(event.x_root, event.y_root) #Positions menu at the cursor
 
+
+positions = position_generator(len(instruments))
+ 
 for i, instrument in enumerate(instruments):
     button = ctk.CTkButton(
         app,
         text=instrument["name"],
-        width=120, height=60, text_color="black", fg_color="lightblue", hover_color="lightgreen",
+        width=60, height=30, text_color="black", fg_color=("#6fa5fc", "#1970fc"), hover_color=("#19d6fc", "#6bffbc"), corner_radius=16,
         command=lambda i=instrument: play_sound(i["sound"]))
+    
+    #Open right click menu to change sample sounds
+    button.bind("<Button-2>", lambda event, i=instrument: show_context_menu(event, i))
+
+
+    #Give the buttons the generated positions from above
     x, y = positions[i]
     button.place(x=x, y=y)
     make_draggable(button)  # Making the buttons draggable, if that wasn't obvious
 
-# Start the MIDI listening in a separate thread
-midi_thread = threading.Thread(target=listen_for_midi, daemon=True)
-midi_thread.start()
+#Start the MIDI listening in a separate thread (commented out for when the bastard keyboard isn't plugged in)
+#midi_thread = threading.Thread(target=listen_for_midi, daemon=True)
+#midi_thread.start()
 
-# Start the GUI loop
+
+#Start the GUI loop
 app.mainloop()
