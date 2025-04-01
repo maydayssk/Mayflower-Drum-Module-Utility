@@ -1,7 +1,7 @@
 import mido
 import playsound
 import customtkinter as ctk
-import threading  #Import threading to run MIDI listening at the same time as the GUI
+import threading  # Import threading to run MIDI listening at the same time as the GUI
 
 # Map MIDI notes to the sounds you want
 note_to_drum = {
@@ -17,14 +17,15 @@ note_to_drum = {
     57: '/Users/hasan/Documents/the meowening/ccymbal.mp3'
 }
 
-#(hopefully) user-configurable midi device name!
+# (hopefully) user-configurable midi device name!
 keyboard = 'LPK25 mk2'
 
-#GUI Setup starts here >:)
-app = ctk.CTk()  # Replacing Tk with customtkinter CTk for the main window
+# GUI Setup starts here >:)
+app = ctk.CTk()
 app.title("MIDI Config")
 app.geometry("800x400")
-app.configure(bg_color='black')
+ctk.set_appearance_mode("system")  #Automatically chooses the theme based on system settings
+
 
 # Define the instruments for the buttons (Make this easier to do using the GUI)
 instruments = [
@@ -39,25 +40,29 @@ instruments = [
     {"name": "Crash Tom", "note": 57, "sound": note_to_drum[57], "x": 50, "y": 50},
 ]
 
-#Function to play sound when button is clicked
+# Function to play sound when button is clicked
 def play_sound(sound):
-    # Use the playsound library to play sound
-    playsound.playsound(sound)
+    # Define a function to run the sound in a new thread
+    def sound_thread():
+        playsound.playsound(sound, block=False)
 
-#Function to handle MIDI input
+    # Create and start a new thread for each sound played
+    threading.Thread(target=sound_thread).start()
+
+# Function to handle MIDI input
 def listen_for_midi():
     try:
-        #Open MIDI input port to listen for signals
+        # Open MIDI input port to listen for signals
         with mido.open_input(keyboard) as port:
             for message in port:
                 if message.type == 'note_on' and message.note in note_to_drum:
                     print(f"Received signal for MIDI note {message.note}, playing {note_to_drum} in response!")
-                    # Play the corresponding sound using playsound
+                    # Play the corresponding sound using playsound in a separate thread
                     play_sound(note_to_drum[message.note])
     except KeyboardInterrupt:
         print("MIDI listening interrupted.")
 
-#Create draggable buttons for the instruments
+# Create draggable buttons for the instruments
 def make_draggable(widget):
     initial_x = 0
     initial_y = 0
@@ -81,7 +86,7 @@ def make_draggable(widget):
     widget.bind("<B1-Motion>", on_drag)
     widget.bind("<ButtonRelease-1>", lambda event: play_sound(widget['text']) if not is_dragging else None)
 
-#Generate positions for the instrument buttons
+# Generate positions for the instrument buttons
 def position_generator(num_buttons, spacing=120):
     positions = []
     for i in range(num_buttons):
@@ -96,15 +101,15 @@ for i, instrument in enumerate(instruments):
     button = ctk.CTkButton(
         app,
         text=instrument["name"],
-        width=120, height=60, fg_color="lightblue", hover_color="lightgreen",
+        width=120, height=60, text_color="black", fg_color="lightblue", hover_color="lightgreen",
         command=lambda i=instrument: play_sound(i["sound"]))
     x, y = positions[i]
     button.place(x=x, y=y)
-    make_draggable(button)  #Making the buttons draggable, what else would this mean lmao
+    make_draggable(button)  # Making the buttons draggable, if that wasn't obvious
 
-#Start the MIDI listening in a separate thread
+# Start the MIDI listening in a separate thread
 midi_thread = threading.Thread(target=listen_for_midi, daemon=True)
 midi_thread.start()
 
-#Start the GUI loop
+# Start the GUI loop
 app.mainloop()
