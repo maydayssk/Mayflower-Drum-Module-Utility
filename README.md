@@ -5,4 +5,6 @@ This is a project that means a lot to me, I broke my right foot ankle in Decembe
 My ankles just hurt too much for it to be reliable :(
 
 So I made this so I can basically make any instrument sound like any other! I have literally tested a small MIDI keyboard by using drum sounds so far lol
-I wanna make it easy for anyone to use this app regardless of experience with coding, since this is also my first time coding anything
+
+I wanna make it easy for anyone to use this app regardless of experience with coding, since this is also my first time coding anything. So, I'll be commenting anything and everything that CAN be changed, should someone want to configure the app to their likings :) Some things like the position generator shouldn't need to be touched so that can stay as it is lol
+

@@ -4,6 +4,8 @@ import customtkinter as ctk
 import tkinter as tk
 from customtkinter import filedialog
 import threading  # Import threading to run MIDI listening at the same time as the GUI
+from PIL import Image, ImageTk
+import os
 
 #Map MIDI notes to the sounds you want
 note_to_drum = {
@@ -24,12 +26,43 @@ keyboard = 'LPK25 mk2'
 
 # GUI Setup starts here >:)
 app = ctk.CTk()
-app.title("MIDI Config")
-app.geometry("800x400")
+
+app.title("MIDI Config") #Window title
+app.geometry("800x400") #Starting window size (same as Raspberry Pi Touchscreen)
+
+app.update()
+
+#Make note of the window 
+window_width = app.winfo_width()
+window_height = app.winfo_height()
+
+bg_label = ctk.CTkLabel(app)
+bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+#Function to resize background image
+def update_bg_image(event=None):
+    window_width = app.winfo_width()
+    window_height = app.winfo_height()
+    
+    # Open the image and resize it to the window's current size
+    image = Image.open("/Users/hasan/Documents/DrumModule/Mayflower-Drum-Module-Utility/Background/bleh.jpg")
+    image_resized = image.resize((window_width, window_height))  # Resize to the window's resolution
+    
+    # Convert the image to a format that can be used in a Tkinter label
+    app.bg_image = ImageTk.PhotoImage(image_resized)
+    
+    # Update the background image
+    bg_label.configure(image=app.bg_image)
+    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+
+update_bg_image
+
+app.bind("<Configure>", update_bg_image)
+
 ctk.set_appearance_mode("system")  #Automatically chooses the theme based on system settings
 
 
-#Define the instruments for the buttons (Note to self: Make this easier to do using the GUI (eventually))
+#Define the instruments for the buttons (Note to self: Make it easier to add instruments using the GUI (eventually))
 instruments = [
     {"name": "Bass", "note": 48, "sound": note_to_drum[48], "x": 50, "y": 50},
     {"name": "Snare", "note": 52, "sound": note_to_drum[52], "x": 50, "y": 50},
@@ -126,7 +159,14 @@ for i, instrument in enumerate(instruments):
     button = ctk.CTkButton(
         app,
         text=instrument["name"],
-        width=60, height=30, text_color="black", fg_color=("#6fa5fc", "#1970fc"), hover_color=("#19d6fc", "#6bffbc"), corner_radius=16,
+        width=60,
+        height=30,
+        text_color="black",
+        fg_color=("#6fa5fc", "#1970fc"), #Foreground colours, light and dark mode respectively 
+        hover_color=("#19d6fc", "#6bffbc"), #Colours for the buttons when they get hovored, light and dark mode respectively
+        corner_radius=16, #Round-i-ness of the buttons :p
+        border_color=None,
+        border_width=0,
         command=lambda instrument=instrument: play_sound(instrument["sound"]))
     
     #Open right click menu to change sample sounds, Button-2 for macOS users for no reason lol, Button-3 for normal people (make these macOS things smth you can change with a toggle!)
