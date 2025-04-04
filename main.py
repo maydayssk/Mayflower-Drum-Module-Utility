@@ -1,13 +1,13 @@
 import mido
 import playsound
-import customtkinter as ctk
-import tkinter as tk
-from customtkinter import filedialog
-import threading  # Import threading to run MIDI listening at the same time as the GUI
-from PIL import Image, ImageTk
+import threading
+from PyQt6.QtCore import Qt, QPoint
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QFileDialog, QMenu
+from PIL import Image
 import os
 
-#Map MIDI notes to the sounds you want
+# Map MIDI notes to the sounds you want
 note_to_drum = {
     48: 'bass.mp3',
     50: 'bass.mp3',
@@ -21,167 +21,156 @@ note_to_drum = {
     57: 'ccymbal.mp3'
 }
 
-#(hopefully) user-configurable MIDI device name!
 keyboard = 'LPK25 mk2'
 
-# GUI Setup starts here >:)
-app = ctk.CTk()
 
-app.title("MIDI Config") #Window title
-app.geometry("800x400") #Starting window size (same as Raspberry Pi Touchscreen)
+class DrumModuleApp(QWidget):
+    def __init__(self):
+        super().__init__()
 
-app.update()
+        self.setWindowTitle("MIDI Config")
+        self.setGeometry(100, 100, 800, 400)
 
-#Make note of the window 
-window_width = app.winfo_width()
-window_height = app.winfo_height()
+        # Set appearance mode to system (Light/Dark based on system)
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #2E2E2E;
+            }
+        """)
 
-bg_label = ctk.CTkLabel(app)
-bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        # Preload the background image using QPixmap
+        bg_image = QPixmap("/Users/hasan/Documents/Mayflower-Drum-Module-Utility/Background/bleh.jpg")
+        bg_image_resized = bg_image.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
 
-#Function to resize background image
-def update_bg_image(event=None):
-    window_width = app.winfo_width()
-    window_height = app.winfo_height()
-    
-    # Open the image and resize it to the window's current size
-    image = Image.open("/Users/hasan/Documents/DrumModule/Mayflower-Drum-Module-Utility/Background/bleh.jpg")
-    image_resized = image.resize((window_width, window_height))  # Resize to the window's resolution
-    
-    # Convert the image to a format that can be used in a Tkinter label
-    app.bg_image = ImageTk.PhotoImage(image_resized)
-    
-    # Update the background image
-    bg_label.configure(image=app.bg_image)
-    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        # Create a QLabel for background
+        self.bg_label = QLabel(self)
+        self.bg_label.setPixmap(bg_image_resized)
+        self.bg_label.setGeometry(0, 0, 800, 400)
 
-update_bg_image
+        # Define instrument buttons
+        self.instruments = [
+            {"name": "Bass", "note": 48, "sound": note_to_drum[48]},
+            {"name": "Snare", "note": 52, "sound": note_to_drum[52]},
+            {"name": "High Tom", "note": 62, "sound": note_to_drum[62]},
+            {"name": "Mid Tom", "note": 64, "sound": note_to_drum[64]},
+            {"name": "Floor Tom", "note": 66, "sound": note_to_drum[66]},
+            {"name": "Opened Hi-Hat", "note": 53, "sound": note_to_drum[53]},
+            {"name": "Closed Hi-Hat", "note": 54, "sound": note_to_drum[54]},
+            {"name": "Ride Cymbal", "note": 56, "sound": note_to_drum[56]},
+            {"name": "Crash Cymbal", "note": 57, "sound": note_to_drum[57]},
+        ]
 
-app.bind("<Configure>", update_bg_image)
+        self.position_buttons()
 
-ctk.set_appearance_mode("system")  #Automatically chooses the theme based on system settings
-
-
-#Define the instruments for the buttons (Note to self: Make it easier to add instruments using the GUI (eventually))
-instruments = [
-    {"name": "Bass", "note": 48, "sound": note_to_drum[48], "x": 50, "y": 50},
-    {"name": "Snare", "note": 52, "sound": note_to_drum[52], "x": 50, "y": 50},
-    {"name": "High Tom", "note": 62, "sound": note_to_drum[62], "x": 50, "y": 50},
-    {"name": "Mid Tom", "note": 64, "sound": note_to_drum[64], "x": 50, "y": 50},
-    {"name": "Floor Tom", "note": 66, "sound": note_to_drum[66], "x": 50, "y": 50},
-    {"name": "Opened Hi-Hat", "note": 53, "sound": note_to_drum[53], "x": 50, "y": 50},
-    {"name": "Closed Hi-Hat", "note": 54, "sound": note_to_drum[54], "x": 50, "y": 50},
-    {"name": "Ride Cymbal", "note": 56, "sound": note_to_drum[56], "x": 50, "y": 50},
-    {"name": "Crash Cymbal", "note": 57, "sound": note_to_drum[57], "x": 50, "y": 50},
-]
-
-#Function to play sound when GUI button is pressed
-def play_sound(sound):
-    #Define a function to run the sound in a new thread
-    def sound_thread():
-        playsound.playsound(sound, block=False)
-
-    #Create and start a new thread for each sound played
-    threading.Thread(target=sound_thread).start()
-
-#Function to handle MIDI input
-def listen_for_midi():
-    try:
-        #Open MIDI input port to listen for signals
-        with mido.open_input(keyboard) as port:
-            for message in port:
-                if message.type == 'note_on' and message.note in note_to_drum:
-                    print(f"Received signal for MIDI note {message.note}, playing {note_to_drum} in response!")
-                    #Play the corresponding sound using playsound in a separate thread
-                    play_sound(note_to_drum[message.note])
-    except KeyboardInterrupt:
-        print("MIDI listening interrupted.")
-
-#Create draggable buttons for the instruments
-def make_draggable(widget):
-    initial_x = 0
-    initial_y = 0
-    is_dragging = False
-    
-    #Checks to see if the mouse is gonna drag it or not
-    def on_drag_start(event):
-        nonlocal initial_x, initial_y, is_dragging
-        initial_x = event.x_root
-        initial_y = event.y_root
-        is_dragging = False
-
-    def on_drag(event):
-        nonlocal initial_x, initial_y, is_dragging
-        if not is_dragging:
-            if abs(event.x_root - initial_x) > 10 or abs(event.y_root - initial_y) > 10:
-                is_dragging = True
-        if is_dragging:
-            widget.place(x=event.x_root - widget.winfo_width() // 2, y=event.y_root - widget.winfo_height() // 2)
-
-    widget.bind("<Button-1>", lambda event: widget.place(x=event.x_root - widget.winfo_width() // 2, y=event.y_root - widget.winfo_height() // 2))
-    widget.bind("<B1-Motion>", on_drag)
-    widget.bind("<ButtonRelease-1>", lambda event: play_sound(widget['text']) if not is_dragging else None)
-
-#Sample sound changing function >:)
-def change_sample_sound(instrument):
-    print(f"Attempting to change sound for {instrument['name']}...")
-    file_path = filedialog.askopenfilename(title="Select a new sample")
-
-    print(f"File selected: {file_path}")
-
-    #Checking if the file path is valid (not empty or none)
-    if file_path and file_path !="":
-        note_to_drum[instrument["note"]] = file_path
-        instrument["sound"] = file_path #Update the instrument's sound
-        print(f"Updated sound for {instrument['name']} to {file_path}")
-    else:
-        print("No valid file selected")
-
-#Generate positions for the instrument buttons
-def position_generator(num_buttons, spacing=120):
-    positions = []
-    for i in range(num_buttons):
-        x = 50 + (i % 5) * spacing
-        y = 50 + (i // 5) * 100
-        positions.append((x, y))
-    return positions
-
-#Function to show right-click menu for changing samples
-def show_context_menu(event, instrument):
-    context_menu = tk.Menu(app, tearoff=0)
-    context_menu.add_command(label="Change Sound", command=lambda: change_sample_sound(instrument))
-    context_menu.post(event.x_root, event.y_root) #Positions menu at the cursor
+    def position_buttons(self):
+        """Position buttons for the instruments"""
+        positions = self.position_generator(len(self.instruments))
+        for i, instrument in enumerate(self.instruments):
+            button = QPushButton(instrument["name"], self)
+            button.setStyleSheet("""
+             QPushButton {
+                background-color: #1970fc;
+                color: black;
+                font-size: 12px;
+                padding: 10px;
+                border-radius: 16px;
+            }
+            QPushButton:hover {
+                background-color: #6bffbc;
+            }
+            """)
+            button.setGeometry(positions[i][0], positions[i][1], 100, 40)
+        
+            # Connecting the button click to the preview_sound function
+            button.clicked.connect(lambda _, sound=instrument["sound"]: self.preview_sound(sound))
+        
+            # Make buttons draggable
+            self.make_draggable(button)
+        
+            # Set up right-click context menu for changing sound
+            button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+            button.customContextMenuRequested.connect(lambda _, btn=button, instrument=instrument: self.show_context_menu(_, btn, instrument))
 
 
-positions = position_generator(len(instruments))
- 
-for i, instrument in enumerate(instruments):
-    button = ctk.CTkButton(
-        app,
-        text=instrument["name"],
-        width=60,
-        height=30,
-        text_color="black",
-        fg_color=("#6fa5fc", "#1970fc"), #Foreground colours, light and dark mode respectively 
-        hover_color=("#19d6fc", "#6bffbc"), #Colours for the buttons when they get hovored, light and dark mode respectively
-        corner_radius=16, #Round-i-ness of the buttons :p
-        border_color=None,
-        border_width=0,
-        command=lambda instrument=instrument: play_sound(instrument["sound"]))
-    
-    #Open right click menu to change sample sounds, Button-2 for macOS users for no reason lol, Button-3 for normal people (make these macOS things smth you can change with a toggle!)
-    button.bind("<Button-2>", lambda event, instrument=instrument: show_context_menu(event, instrument))
+    def position_generator(self, num_buttons, spacing=120):
+        """Generate positions for buttons"""
+        positions = []
+        for i in range(num_buttons):
+            x = 50 + (i % 5) * spacing
+            y = 50 + (i // 5) * 100
+            positions.append((x, y))
+        return positions
+
+    def preview_sound(self, sound):
+        """Preview sound by playing it when a button is clicked"""
+        def sound_thread():
+            playsound.playsound(sound, block=False)
+
+        threading.Thread(target=sound_thread).start()
+
+    def make_draggable(self, widget):
+        """Enable dragging for PyQt6 widgets"""
+        widget.setMouseTracking(True)
+
+        def on_drag_start(event):
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.drag_position = event.globalPosition()
+
+        def on_drag_move(event):
+            if event.buttons() == Qt.MouseButton.LeftButton:
+                delta = event.globalPosition() - self.drag_position
+                widget.move(widget.pos() + delta.toPoint())
+                self.drag_position = event.globalPosition()
+
+        widget.mousePressEvent = on_drag_start
+        widget.mouseMoveEvent = on_drag_move
+
+    def show_context_menu(self, event, button, instrument):
+        """Display the context menu on right-click"""
+        context_menu = QMenu(self)
+
+        # Add an option to change the sound
+        change_sound_action = context_menu.addAction("Change Sound")
+        change_sound_action.triggered.connect(lambda: self.change_sound(button, instrument))
+
+        # Use the position where the right-click occurred to show the context menu
+        context_menu.exec(self.mapToGlobal(QPoint(event.x(), event.y())))
+
+    def change_sound(self, button, instrument):
+        """Allow the user to change the sound for the button"""
+        new_sound, _ = QFileDialog.getOpenFileName(self, "Select New Sound", "", "Audio Files (*.mp3 *.wav)")
+
+        if new_sound:
+            instrument["sound"] = new_sound
+            button.setText(f"{instrument['name']} (Custom)")
+
+    def listen_for_midi(self):
+        """Listen for MIDI input and trigger appropriate sound"""
+        try:
+            with mido.open_input(keyboard) as port:
+                for message in port:
+                    if message.type == 'note_on' and message.note in note_to_drum:
+                        self.preview_sound(note_to_drum[message.note])
+        except KeyboardInterrupt:
+            print("MIDI listening interrupted.")
 
 
-    #Give the buttons the positions that were generated from above
-    x, y = positions[i]
-    button.place(x=x, y=y)
-    make_draggable(button)  # Making the buttons draggable, if that wasn't obvious
-
-#Start the MIDI listening in a separate thread (commented out for when the bastard keyboard isn't plugged in)
-#midi_thread = threading.Thread(target=listen_for_midi, daemon=True)
-#midi_thread.start()
+def run_midi_thread():
+    """Start listening for MIDI input in a separate thread"""
+    app.listen_for_midi()
 
 
-#Start the GUI loop
-app.mainloop()
+if __name__ == "__main__":
+    # Initialize the PyQt6 application
+    app = QApplication([])
+
+    # Create the main window and show it
+    window = DrumModuleApp()
+    window.show()
+
+    # Start the MIDI listening in a separate thread
+    midi_thread = threading.Thread(target=run_midi_thread, daemon=True)
+    midi_thread.start()
+
+    # Start the event loop for the application
+    app.exec()
