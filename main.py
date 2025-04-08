@@ -3,11 +3,10 @@ import playsound
 import threading
 from PyQt6.QtCore import Qt, QPoint
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QVBoxLayout, QFileDialog, QMenu
-from PIL import Image
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QFileDialog, QMenu
 import os
 
-# Map MIDI notes to the sounds you want
+#Map MIDI notes to the sounds you want
 note_to_drum = {
     48: 'bass.mp3',
     50: 'bass.mp3',
@@ -23,7 +22,7 @@ note_to_drum = {
 
 keyboard = 'LPK25 mk2'
 
-
+#GUI Coding (sobbing)
 class DrumModuleApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -31,23 +30,23 @@ class DrumModuleApp(QWidget):
         self.setWindowTitle("MIDI Config")
         self.setGeometry(100, 100, 800, 400)
 
-        # Set appearance mode to system (Light/Dark based on system)
+        #Set appearance mode to system (Light/Dark based on system)
         self.setStyleSheet("""
             QWidget {
                 background-color: #2E2E2E;
             }
         """)
 
-        # Preload the background image using QPixmap
-        bg_image = QPixmap("/Users/hasan/Documents/Mayflower-Drum-Module-Utility/Background/bleh.jpg")
+        #Preload the background image using QPixmap
+        bg_image = QPixmap("/Users/hasan/Documents/Mayflower-Drum-Module-Utility/Background/Phospilled.png")
         bg_image_resized = bg_image.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
 
-        # Create a QLabel for background
+        #Create a QLabel for background
         self.bg_label = QLabel(self)
         self.bg_label.setPixmap(bg_image_resized)
         self.bg_label.setGeometry(0, 0, 800, 400)
 
-        # Define instrument buttons
+        #Define instrument buttons
         self.instruments = [
             {"name": "Bass", "note": 48, "sound": note_to_drum[48]},
             {"name": "Snare", "note": 52, "sound": note_to_drum[52]},
@@ -63,7 +62,7 @@ class DrumModuleApp(QWidget):
         self.position_buttons()
 
     def position_buttons(self):
-        """Position buttons for the instruments"""
+        #Position buttons for the instruments
         positions = self.position_generator(len(self.instruments))
         for i, instrument in enumerate(self.instruments):
             button = QPushButton(instrument["name"], self)
@@ -81,19 +80,19 @@ class DrumModuleApp(QWidget):
             """)
             button.setGeometry(positions[i][0], positions[i][1], 100, 40)
         
-            # Connecting the button click to the preview_sound function
+            #Connecting the button click to the preview_sound function
             button.clicked.connect(lambda _, sound=instrument["sound"]: self.preview_sound(sound))
         
-            # Make buttons draggable
+            #Make buttons draggable
             self.make_draggable(button)
         
-            # Set up right-click context menu for changing sound
+            #Set up right-click context menu for changing sound
             button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             button.customContextMenuRequested.connect(lambda _, btn=button, instrument=instrument: self.show_context_menu(_, btn, instrument))
 
 
     def position_generator(self, num_buttons, spacing=120):
-        """Generate positions for buttons"""
+        #Generate positions for buttons
         positions = []
         for i in range(num_buttons):
             x = 50 + (i % 5) * spacing
@@ -102,14 +101,14 @@ class DrumModuleApp(QWidget):
         return positions
 
     def preview_sound(self, sound):
-        """Preview sound by playing it when a button is clicked"""
+        #review sound by playing it when a button is clicked
         def sound_thread():
             playsound.playsound(sound, block=False)
 
         threading.Thread(target=sound_thread).start()
 
     def make_draggable(self, widget):
-        """Enable dragging for PyQt6 widgets"""
+        #Enable dragging for PyQt6 widgets
         widget.setMouseTracking(True)
 
         def on_drag_start(event):
@@ -126,18 +125,18 @@ class DrumModuleApp(QWidget):
         widget.mouseMoveEvent = on_drag_move
 
     def show_context_menu(self, event, button, instrument):
-        """Display the context menu on right-click"""
+        #Display the context menu on right-click
         context_menu = QMenu(self)
 
-        # Add an option to change the sound
+        #Add an option to change the sound
         change_sound_action = context_menu.addAction("Change Sound")
         change_sound_action.triggered.connect(lambda: self.change_sound(button, instrument))
 
-        # Use the position where the right-click occurred to show the context menu
+        #Use the position where the right-click occurred to show the context menu
         context_menu.exec(self.mapToGlobal(QPoint(event.x(), event.y())))
 
     def change_sound(self, button, instrument):
-        """Allow the user to change the sound for the button"""
+       #Allow the user to change the sound for the button
         new_sound, _ = QFileDialog.getOpenFileName(self, "Select New Sound", "", "Audio Files (*.mp3 *.wav)")
 
         if new_sound:
@@ -145,7 +144,7 @@ class DrumModuleApp(QWidget):
             button.setText(f"{instrument['name']} (Custom)")
 
     def listen_for_midi(self):
-        """Listen for MIDI input and trigger appropriate sound"""
+        #Listen for MIDI input and trigger appropriate sound
         try:
             with mido.open_input(keyboard) as port:
                 for message in port:
@@ -156,21 +155,21 @@ class DrumModuleApp(QWidget):
 
 
 def run_midi_thread():
-    """Start listening for MIDI input in a separate thread"""
+    #Start listening for MIDI input in a separate thread
     app.listen_for_midi()
 
 
 if __name__ == "__main__":
-    # Initialize the PyQt6 application
+    #Initialize the PyQt6 application
     app = QApplication([])
 
-    # Create the main window and show it
+    #Create the main window and show it
     window = DrumModuleApp()
     window.show()
 
-    # Start the MIDI listening in a separate thread
+    #Start the MIDI listening in a separate thread
     midi_thread = threading.Thread(target=run_midi_thread, daemon=True)
     midi_thread.start()
 
-    # Start the event loop for the application
+    #Start the event loop for the application
     app.exec()
