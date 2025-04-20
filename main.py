@@ -1,12 +1,11 @@
 import mido
 import playsound
 import threading
-from PyQt6.QtCore import Qt, QPoint
-from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QFileDialog, QMenu
+from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, QEvent
+from PyQt6.QtGui import QPixmap, QAction
+from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QPushButton, QFileDialog, QMenu
 import os
 
-#Map MIDI notes to the sounds you want
 note_to_drum = {
     48: 'bass.mp3',
     50: 'bass.mp3',
@@ -22,31 +21,28 @@ note_to_drum = {
 
 keyboard = 'LPK25 mk2'
 
-#GUI Coding (sobbing)
-class DrumModuleApp(QWidget):
+class DrumModuleApp(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("MIDI Config")
         self.setGeometry(100, 100, 800, 400)
 
-        #Set appearance mode to system (Light/Dark based on system)
-        self.setStyleSheet("""
+        # Central widget
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+
+        self.central_widget.setStyleSheet("""
             QWidget {
                 background-color: #2E2E2E;
             }
         """)
 
-        #Preload the background image using QPixmap
-        bg_image = QPixmap("/Users/hasan/Documents/Mayflower-Drum-Module-Utility/Background/Phospilled.png")
-        bg_image_resized = bg_image.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+        # Background image
+        self.bg_label = QLabel(self.central_widget)
+        self.update_background()
 
-        #Create a QLabel for background
-        self.bg_label = QLabel(self)
-        self.bg_label.setPixmap(bg_image_resized)
-        self.bg_label.setGeometry(0, 0, 800, 400)
-
-        #Define instrument buttons
+        # Instrument config
         self.instruments = [
             {"name": "Bass", "note": 48, "sound": note_to_drum[48]},
             {"name": "Snare", "note": 52, "sound": note_to_drum[52]},
@@ -59,40 +55,67 @@ class DrumModuleApp(QWidget):
             {"name": "Crash Cymbal", "note": 57, "sound": note_to_drum[57]},
         ]
 
+        self.buttons = []
         self.position_buttons()
 
+        self.create_menu()
+
+    def create_menu(self):
+        menu_bar = self.menuBar()
+        view_menu = menu_bar.addMenu("View")
+
+        resolutions = [
+            ("800 x 400", 800, 400),
+            ("1024 x 576", 1024, 576),
+            ("1280 x 720", 1280, 720),
+            ("1920 x 1080", 1920, 1080),
+        ]
+
+        for label, width, height in resolutions:
+            action = QAction(label, self)
+            action.triggered.connect(lambda _, w=width, h=height: self.set_resolution(w, h))
+            view_menu.addAction(action)
+
+    def update_background(self):
+        bg_image = QPixmap("/Users/hasan/Documents/Mayflower-Drum-Module-Utility/Background/Phospilled.png")
+        resized_bg = bg_image.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
+        self.bg_label.setPixmap(resized_bg)
+        self.bg_label.setGeometry(0, 0, self.width(), self.height())
+        self.bg_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+    def set_resolution(self, width, height):
+        self.resize(width, height)
+        self.update_background()
+
     def position_buttons(self):
-        #Position buttons for the instruments
         positions = self.position_generator(len(self.instruments))
         for i, instrument in enumerate(self.instruments):
-            button = QPushButton(instrument["name"], self)
+            button = QPushButton(instrument["name"], self.central_widget)
             button.setStyleSheet("""
-             QPushButton {
-                background-color: #1970fc;
-                color: black;
-                font-size: 12px;
-                padding: 10px;
-                border-radius: 16px;
-            }
-            QPushButton:hover {
-                background-color: #6bffbc;
-            }
+                QPushButton {
+                    background-color: #1970fc;
+                    color: white;
+                    font-size: 12px;
+                    padding: 10px;
+                    border-radius: 16px;
+                    border: 2px solid transparent;
+                }
+                QPushButton:hover {
+                    background-color: #6bffbc;
+                    border: 2px solid #ffffff;
+                }
             """)
+            button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
             button.setGeometry(positions[i][0], positions[i][1], 100, 40)
-        
-            #Connecting the button click to the preview_sound function
+
             button.clicked.connect(lambda _, sound=instrument["sound"]: self.preview_sound(sound))
-        
-            #Make buttons draggable
-            self.make_draggable(button)
-        
-            #Set up right-click context menu for changing sound
             button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
             button.customContextMenuRequested.connect(lambda _, btn=button, instrument=instrument: self.show_context_menu(_, btn, instrument))
 
+            self.make_draggable(button)
+            self.buttons.append(button)
 
     def position_generator(self, num_buttons, spacing=120):
-        #Generate positions for buttons
         positions = []
         for i in range(num_buttons):
             x = 50 + (i % 5) * spacing
@@ -101,15 +124,14 @@ class DrumModuleApp(QWidget):
         return positions
 
     def preview_sound(self, sound):
-        #review sound by playing it when a button is clicked
         def sound_thread():
             playsound.playsound(sound, block=False)
 
         threading.Thread(target=sound_thread).start()
 
     def make_draggable(self, widget):
-        #Enable dragging for PyQt6 widgets
         widget.setMouseTracking(True)
+        widget.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
         def on_drag_start(event):
             if event.button() == Qt.MouseButton.LeftButton:
@@ -123,28 +145,45 @@ class DrumModuleApp(QWidget):
 
         widget.mousePressEvent = on_drag_start
         widget.mouseMoveEvent = on_drag_move
+        widget.installEventFilter(self)
+        widget.original_geometry = widget.geometry()
+
+    def eventFilter(self, watched, event):
+        if isinstance(watched, QPushButton):
+            if event.type() == QEvent.Type.Enter:
+                anim = QPropertyAnimation(watched, b"geometry")
+                anim.setDuration(150)
+                anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+                anim.setStartValue(watched.geometry())
+                anim.setEndValue(watched.geometry().adjusted(-5, -5, 5, 5))
+                anim.start()
+                watched._hover_anim = anim
+
+            elif event.type() == QEvent.Type.Leave:
+                if hasattr(watched, "original_geometry"):
+                    anim = QPropertyAnimation(watched, b"geometry")
+                    anim.setDuration(150)
+                    anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+                    anim.setStartValue(watched.geometry())
+                    anim.setEndValue(watched.original_geometry)
+                    anim.start()
+                    watched._hover_anim = anim
+
+        return super().eventFilter(watched, event)
 
     def show_context_menu(self, event, button, instrument):
-        #Display the context menu on right-click
         context_menu = QMenu(self)
-
-        #Add an option to change the sound
         change_sound_action = context_menu.addAction("Change Sound")
         change_sound_action.triggered.connect(lambda: self.change_sound(button, instrument))
-
-        #Use the position where the right-click occurred to show the context menu
         context_menu.exec(self.mapToGlobal(QPoint(event.x(), event.y())))
 
     def change_sound(self, button, instrument):
-       #Allow the user to change the sound for the button
         new_sound, _ = QFileDialog.getOpenFileName(self, "Select New Sound", "", "Audio Files (*.mp3 *.wav)")
-
         if new_sound:
             instrument["sound"] = new_sound
             button.setText(f"{instrument['name']} (Custom)")
 
     def listen_for_midi(self):
-        #Listen for MIDI input and trigger appropriate sound
         try:
             with mido.open_input(keyboard) as port:
                 for message in port:
@@ -153,23 +192,13 @@ class DrumModuleApp(QWidget):
         except KeyboardInterrupt:
             print("MIDI listening interrupted.")
 
-
 def run_midi_thread():
-    #Start listening for MIDI input in a separate thread
-    app.listen_for_midi()
-
+    window.listen_for_midi()
 
 if __name__ == "__main__":
-    #Initialize the PyQt6 application
     app = QApplication([])
-
-    #Create the main window and show it
     window = DrumModuleApp()
     window.show()
-
-    #Start the MIDI listening in a separate thread
     midi_thread = threading.Thread(target=run_midi_thread, daemon=True)
     midi_thread.start()
-
-    #Start the event loop for the application
     app.exec()
