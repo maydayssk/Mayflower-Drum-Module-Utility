@@ -1,10 +1,11 @@
-import mido, threading, json, pygame, shutil, time
+import mido, threading, json, shutil
 from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, QEvent, QSize, QTimer
 from PyQt6.QtGui import QPixmap, QAction
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QLabel, QPushButton, QFileDialog, QMenu, QMessageBox, QComboBox
 from pathlib import Path
+from playsound import playsound
 
-
+# Assign MIDI notes (the numbers) to their respective drum sounds
 note_to_drum = {
     48: 'bass.mp3',
     50: 'bass.mp3',
@@ -18,15 +19,16 @@ note_to_drum = {
     57: 'ccymbal.mp3'
 }
 
-b_positions_file = "button_positions.json"
-base_dir = Path(__file__).parent
+b_positions_file = "button_positions.json" # File for storing button placement
+base_dir = Path(__file__).parent # Base directory (easier to refer to it this way)
+
 
 class DrumModuleApp(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("MIDI Config")
-        self.setGeometry(100, 100, 800, 400)
+        self.setWindowTitle("MIDI Config") # Window title
+        self.setGeometry(100, 100, 800, 400) # Base resolution
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -62,9 +64,6 @@ class DrumModuleApp(QMainWindow):
             {"name": "Ride Cymbal", "note": 56, "sound": note_to_drum[56]},
             {"name": "Crash Cymbal", "note": 57, "sound": note_to_drum[57]},
         ]
-
-        pygame.mixer.init()
-        print(f"[Pygame] Mixer initialised:", pygame.mixer.get_init())
         self.sound_cache = {}
         self.load_all_sounds()
 
@@ -73,6 +72,7 @@ class DrumModuleApp(QMainWindow):
         self.load_positions()
         self.create_menu()
 
+        # Reset button coding
         self.reset_button = QPushButton("Reset Positions", self.central_widget)
         self.reset_button.setStyleSheet("""
             QPushButton {
@@ -119,7 +119,8 @@ class DrumModuleApp(QMainWindow):
         if hasattr(self, 'selected_midi_device'):
             print(f"Listening for MIDI on {self.selected_midi_device}...")
             # Start the MIDI thread with the selected device
-            self.midi_thread = threading.Thread(target=self.listen_for_midi, args=(self.selected_midi_device,))
+            self.midi_listening = True
+            self.midi_thread = threading.Thread(target=self.listen_for_midi)
             self.midi_thread.daemon = True
             self.midi_thread.start()
     
@@ -131,7 +132,7 @@ class DrumModuleApp(QMainWindow):
         # Delete saved positions file, if it exists
         try:
             Path(b_positions_file).unlink()
-            print("[Reset Saved] positions file deleted!")
+            print("[Reset] Positions file deleted!")
         except FileNotFoundError:
             print("[Reset] No saved positions file to delete :(")
 
@@ -154,12 +155,18 @@ class DrumModuleApp(QMainWindow):
     def load_all_sounds(self):
         for instrument in self.instruments:
             sound_path = instrument.get("sound")
-            full_path = str(base_dir / "Sounds" / sound_path)
-            if Path(full_path).exists():
-                self.sound_cache[sound_path] = pygame.mixer.Sound(full_path)
+            full_path = Path(base_dir / "Sounds" / sound_path)
+            
+            if full_path.exists():
+                try:
+                    print(f"[Debug] Sound found: {full_path}")
+                    # No need to load or cache the sound
+                except Exception as e:
+                    print(f"[Load Error] Could not handle sound {full_path}: {e}")
             else:
                 print(f"[Load Error] Could not find sound: {full_path}")
 
+    # Resolution menu
     def create_menu(self):
         menu_bar = self.menuBar()
         view_menu = menu_bar.addMenu("View")
@@ -176,6 +183,7 @@ class DrumModuleApp(QMainWindow):
             action.triggered.connect(lambda _, w=width, h=height: self.set_resolution(w, h))
             view_menu.addAction(action)
 
+    # Function to scale the background with the window size
     def update_background(self):
         bg_path = base_dir / "Background" / "Phospilled.png"
         bg_image = QPixmap(str(bg_path))
@@ -184,16 +192,18 @@ class DrumModuleApp(QMainWindow):
         self.bg_label.setGeometry(0, 0, self.width(), self.height())
         self.bg_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
+    # Change resize event to work with some of the other functions
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.update_background()
         self.position_reset_button() # Move reset button based on resolution
-        self.midi_device_selector.setGeometry(10, 10, self.width() - 20,30) #Change MIDI device selector based on
+        self.midi_device_selector.setGeometry(10, 10, self.width() - 20,30) #Change MIDI device selector based on resolution
 
     def set_resolution(self, width, height):
         self.resize(width, height)
         self.update_background()
 
+    # Load button position file
     def load_positions(self):
         try:
             with open(b_positions_file, "r") as f:
@@ -206,6 +216,7 @@ class DrumModuleApp(QMainWindow):
         except (FileNotFoundError, json.JSONDecodeError):
             print("No saved positions found or error loading positions.")
 
+    # Button sound preview
     def make_click_sound_callback(self, instrument):
         def callback():
             sound = instrument.get("sound")
@@ -213,6 +224,7 @@ class DrumModuleApp(QMainWindow):
                 self.preview_sound(sound)
         return callback
 
+    # Absolute hell (Button formatting and positioning)
     def position_buttons(self):
         positions = self.position_generator(len(self.instruments))
         for i, instrument in enumerate(self.instruments):
@@ -231,6 +243,7 @@ class DrumModuleApp(QMainWindow):
                     border: 2px solid #ffffff;
                 }
             """)
+            # Don't mess with anything here!
             button.setMouseTracking(True)
             button.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
             button.setGeometry(positions[i][0], positions[i][1], 100, 40)
@@ -242,6 +255,7 @@ class DrumModuleApp(QMainWindow):
             self.make_draggable(button)
             self.buttons.append(button)
 
+    # Button position generator
     def position_generator(self, num_buttons, spacing=130):
         positions = []
         for i in range(num_buttons):
@@ -250,24 +264,29 @@ class DrumModuleApp(QMainWindow):
             positions.append((x, y))
         return positions
 
+    # Function to play sounds in response to MIDI notes
     def preview_sound(self, sound):
-        full_path = str(base_dir / "Sounds" /  sound)
-        print("[Debug] Previewing:", full_path)
-        if sound not in self.sound_cache:
-            if Path(full_path).exists():
-                self.sound_cache[sound] = pygame.mixer.Sound(full_path)
-            else:
+        def play_sound():
+            full_path = Path(base_dir / "Sounds" / sound)
+            print(f"[Debug] Trying to play: {full_path}")
+        
+            # Check if file exists
+            if not full_path.exists():
                 print(f"[Sound Error] File not found: {full_path}")
                 return
-        self.sound_cache[sound].play()
+        
+            try:
+                # Play sound using playsound
+                print(f"[Debug] Playing sound: {full_path}")
+                playsound(str(full_path)) 
+            except Exception as e:
+                print(f"[Sound Error] Could not play sound: {e}")
+        
+        # Run the play_sound function in a separate thread to avoid blocking
+        threading.Thread(target=play_sound, daemon=True).start()
 
-        def highlight_button_by_note(self, note):
-            for instrument, button in zip(self.instruments, self.buttons):
-                if instrument["note"] == note:
-                    original_style = button.styleSheet()
-                    button.setStyleSheet(original_style + "background-color: #ffff99;")
-                    QTimer.singleShot(200, lambda: button.setStyleSheet(original_style))  # revert after 200ms
 
+    # Function to make the buttons... draggable
     def make_draggable(self, widget):
         widget.setMouseTracking(True)
         widget.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
@@ -332,6 +351,7 @@ class DrumModuleApp(QMainWindow):
 
         return super().eventFilter(watched, event)
 
+    # Save the positions of the buttons to the b_position_file tingie
     def save_positions(self):
         positions = [(button.pos().x(), button.pos().y()) for button in self.buttons]
         with open(b_positions_file, "w") as f:
@@ -348,11 +368,12 @@ class DrumModuleApp(QMainWindow):
         change_sound_action.triggered.connect(lambda: self.change_sound(button, instrument))
         context_menu.exec(self.mapToGlobal(QPoint(event.x(), event.y())))
 
+    # For changing the sounds of the instruments
     def change_sound(self, button, instrument):
         new_sound, _ = QFileDialog.getOpenFileName(self, "Select New Sound", "", "Audio Files (*.mp3 *.wav)")
         if new_sound:
             # Copy the file to the sounds folder if it's not already there
-            target_path = base_dir / "sounds" / Path(new_sound).name
+            target_path = base_dir / "Sounds" / Path(new_sound).name
             if not target_path.exists():
                 shutil.copy(new_sound, target_path)
             instrument["sound"] = Path(new_sound).name
@@ -360,19 +381,15 @@ class DrumModuleApp(QMainWindow):
 
 
     def listen_for_midi(self):
-        try:
-            with mido.open_input(self.selected_midi_device) as port:
-                print(f"Listening for MIDI messages on {self.selected_midi_device}...")
-                while self.midi_listening:
-                    for message in port.iter_pending():
-                        print("Received MIDI message:", message)
-                    time.sleep(0.01)
-        except (IOError, OSError, EOFError, mido.backends.rtmidi.PortNotOpenError) as e:
-            print(f"[Error] MIDI device disconnected or unavailable: {e}")
-            self.midi_listening = False
-            self.notify_device_disconnected()
-            self.highlight_button_by_note(message.note)
+        with mido.open_input(self.selected_midi_device) as inport:
+            for msg in inport:
+                if msg.type == "note_on":
+                    sound = note_to_drum.get(msg.note)
+                    if sound:
+                        self.preview_sound(sound) # Plays sound
 
+    def run(self):
+        self.listener.listen_for_midi()
 
 if __name__ == "__main__":
     app = QApplication([])
