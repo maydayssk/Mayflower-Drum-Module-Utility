@@ -185,7 +185,7 @@ class DrumModuleApp(QMainWindow):
 
     # Function to scale the background with the window size
     def update_background(self):
-        bg_path = base_dir / "Background" / "Phospilled.png"
+        bg_path = base_dir / "Background" / "Eevee.png"
         bg_image = QPixmap(str(bg_path))
         resized_bg = bg_image.scaled(self.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding)
         self.bg_label.setPixmap(resized_bg)
@@ -233,8 +233,8 @@ class DrumModuleApp(QMainWindow):
                 QPushButton {
                     background-color: #1970fc;
                     color: white;
-                    font-size: 10px;
-                    padding: 10px;
+                    font-size: 8px;
+                    padding: 20px;
                     border-radius: 16px;
                     border: 2px solid transparent;
                 }
